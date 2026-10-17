@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head><link rel="manifest" href="./manifest.json">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>公車 16 席即時座位狀態圖</title>
+  <style>
+    :root {
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --available-bg: #dcfce7;
+      --available-stroke: #22c55e;
+      --available-text: #15803d;
+      --occupied-bg: #fee2e2;
+      --occupied-stroke: #ef4444;
+      --occupied-text: #b91c1c;
+      --reserved-bg: #fef3c7;
+      --reserved-stroke: #f59e0b;
+      --reserved-text: #b45309;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      margin: 0;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 420px;
+      background: var(--card-bg);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+
+    .header h2 {
+      margin: 0 0 5px 0;
+      font-size: 20px;
+    }
+
+    /* 擁擠度燈號指示器 */
+    .crowd-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      background: #f1f5f9;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .status-dot.green { background-color: #22c55e; }
+    .status-dot.yellow { background-color: #f59e0b; }
+    .status-dot.red { background-color: #ef4444; }
+
+    /* SVG 繪圖與樣式設定 */
+    .bus-svg-container {
+      width: 100%;
+      margin: 10px 0;
+    }
+
+    .bus-body { fill: #f8fafc; stroke: #334155; stroke-width: 4; rx: 36; }
+    .driver-area { stroke: #94a3b8; stroke-width: 2; fill: none; }
+    .seat-label { font-size: 13px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
+    .aisle-text { font-size: 11px; fill: #cbd5e1; letter-spacing: 2px; }
+
+    /* 動態座位狀態 Class */
+    .seat rect { transition: all 0.25s ease; cursor: pointer; }
+    
+    .seat.status-available rect { fill: var(--available-bg); stroke: var(--available-stroke); stroke-width: 2; }
+    .seat.status-available .seat-label { fill: var(--available-text); }
+    
+    .seat.status-occupied rect { fill: var(--occupied-bg); stroke: var(--occupied-stroke); stroke-width: 2; }
+    .seat.status-occupied .seat-label { fill: var(--occupied-text); }
+
+    .seat.status-reserved rect { fill: var(--reserved-bg); stroke: var(--reserved-stroke); stroke-width: 2; }
+    .seat.status-reserved .seat-label { fill: var(--reserved-text); }
+
+    .seat:hover rect { filter: brightness(0.92); }
+
+    /* 圖例說明 */
+    .legend {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 15px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-box { width: 14px; height: 14px; border-radius: 4px; }
+    .legend-box.available { background: var(--available-bg); border: 1.5px solid var(--available-stroke); }
+    .legend-box.occupied { background: var(--occupied-bg); border: 1.5px solid var(--occupied-stroke); }
+    .legend-box.reserved { background: var(--reserved-bg); border: 1.5px solid var(--reserved-stroke); }
+
+    /* 測試按鈕 */
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background-color: #3b82f6;
+      color: white;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background-color: #2563eb; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h2>E01旗美國道快捷公車 (車號: KAB-1234)</h2>
+      <div class="crowd-status" id="crowdStatus">
+        <span class="status-dot green" id="crowdDot"></span>
+        <span id="crowdText">載客舒適 (空位足夠)</span>
+      </div>
+    </div>
+
+    <!-- 16 席公車 SVG 向量圖形 -->
+    <div class="bus-svg-container">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 880" width="100%" height="100%">
+        <!-- 車體輪廓 -->
+        <rect x="20" y="20" width="320" height="840" class="bus-body" />
+        
+        <!-- 車頭與駕駛區 -->
+        <path d="M 40 70 Q 180 30 320 70" class="driver-area" stroke-dasharray="4 4" />
+        <text x="180" y="55" class="seat-label" fill="#94a3b8" font-size="11">駕駛區 / 車頭 FRONT</text>
+
+        <!-- 中央走道標示 -->
+        <text x="180" y="470" class="aisle-text" text-anchor="middle" writing-mode="tb">CENTRAL AISLE</text>
+
+        <!-- A 區座位 (左側 8 席) -->
+        <g id="seat-A01" class="seat status-available"><rect x="50" y="110" width="60" height="55" rx="10"/><text x="80" y="137.5" class="seat-label">A01</text></g>
+        <g id="seat-A02" class="seat status-available"><rect x="50" y="200" width="60" height="55" rx="10"/><text x="80" y="227.5" class="seat-label">A02</text></g>
+        <g id="seat-A03" class="seat status-available"><rect x="50" y="290" width="60" height="55" rx="10"/><text x="80" y="317.5" class="seat-label">A03</text></g>
+        <g id="seat-A04" class="seat status-available"><rect x="50" y="380" width="60" height="55" rx="10"/><text x="80" y="407.5" class="seat-label">A04</text></g>
+        <g id="seat-A05" class="seat status-available"><rect x="50" y="470" width="60" height="55" rx="10"/><text x="80" y="497.5" class="seat-label">A05</text></g>
+        <g id="seat-A06" class="seat status-available"><rect x="50" y="560" width="60" height="55" rx="10"/><text x="80" y="587.5" class="seat-label">A06</text></g>
+        <g id="seat-A07" class="seat status-available"><rect x="50" y="650" width="60" height="55" rx="10"/><text x="80" y="677.5" class="seat-label">A07</text></g>
+        <g id="seat-A08" class="seat status-available"><rect x="50" y="740" width="60" height="55" rx="10"/><text x="80" y="767.5" class="seat-label">A08</text></g>
+
+        <!-- B 區座位 (右側 8 席) -->
+        <g id="seat-B01" class="seat status-available"><rect x="250" y="110" width="60" height="55" rx="10"/><text x="280" y="137.5" class="seat-label">B01</text></g>
+        <g id="seat-B02" class="seat status-available"><rect x="250" y="200" width="60" height="55" rx="10"/><text x="280" y="227.5" class="seat-label">B02</text></g>
+        <g id="seat-B03" class="seat status-available"><rect x="250" y="290" width="60" height="55" rx="10"/><text x="280" y="317.5" class="seat-label">B03</text></g>
+        <g id="seat-B04" class="seat status-available"><rect x="250" y="380" width="60" height="55" rx="10"/><text x="280" y="407.5" class="seat-label">B04</text></g>
+        <g id="seat-B05" class="seat status-available"><rect x="250" y="470" width="60" height="55" rx="10"/><text x="280" y="497.5" class="seat-label">B05</text></g>
+        <g id="seat-B06" class="seat status-available"><rect x="250" y="560" width="60" height="55" rx="10"/><text x="280" y="587.5" class="seat-label">B06</text></g>
+        <g id="seat-B07" class="seat status-available"><rect x="250" y="650" width="60" height="55" rx="10"/><text x="280" y="677.5" class="seat-label">B07</text></g>
+        <g id="seat-B08" class="seat status-available"><rect x="250" y="740" width="60" height="55" rx="10"/><text x="280" y="767.5" class="seat-label">B08</text></g>
+      </svg>
+    </div>
+
+    <!-- 圖例 -->
+    <div class="legend">
+      <div class="legend-item"><div class="legend-box available"></div>空位</div>
+      <div class="legend-item"><div class="legend-box reserved"></div>預約中</div>
+      <div class="legend-item"><div class="legend-box occupied"></div>有人</div>
+    </div>
+
+    <!-- 測試按鈕 -->
+    <div class="controls">
+      <button onclick="simulateBackendData()">模擬後端資料傳入</button>
+    </div>
+  </div>
+
+  <script>
+    // 模擬從「又豪」後端 API 取得的資料格式
+    const mockApiData = [
+      { seat_id: "seat-A01", status: "occupied" },
+      { seat_id: "seat-A02", status: "occupied" },
+      { seat_id: "seat-A03", status: "available" },
+      { seat_id: "seat-A04", status: "reserved" },
+      { seat_id: "seat-A05", status: "available" },
+      { seat_id: "seat-A06", status: "occupied" },
+      { seat_id: "seat-A07", status: "available" },
+      { seat_id: "seat-A08", status: "occupied" },
+      { seat_id: "seat-B01", status: "occupied" },
+      { seat_id: "seat-B02", status: "occupied" },
+      { seat_id: "seat-B03", status: "occupied" },
+      { seat_id: "seat-B04", status: "reserved" },
+      { seat_id: "seat-B05", status: "occupied" },
+      { seat_id: "seat-B06", status: "occupied" },
+      { seat_id: "seat-B07", status: "occupied" },
+      { seat_id: "seat-B08", status: "occupied" }
+    ];
+
+    // 更新座位圖畫面的 JavaScript 函式
+    function updateSeatMap(seatData) {
+      let availableCount = 0;
+
+      seatData.forEach(item => {
+        // 透過又豪後端傳過來的 seat_id 抓取 SVG 中的 <g> 圖層
+        const seatGroup = document.getElementById(item.seat_id);
+        
+        if (seatGroup) {
+          // 清除原有狀態 class，並加入最新狀態 class
+          seatGroup.classList.remove('status-available', 'status-occupied', 'status-reserved');
+          seatGroup.classList.add(`status-${item.status}`);
+
+          if (item.status === 'available') {
+            availableCount++;
+          }
+        }
+      });
+
+      // 更新擁擠度燈號
+      updateCrowdStatus(availableCount);
+    }
+
+    // 計算並更新頂部擁擠度燈號
+    function updateCrowdStatus(availableCount) {
+      const dot = document.getElementById('crowdDot');
+      const text = document.getElementById('crowdText');
+
+      if (availableCount >= 8) {
+        dot.className = 'status-dot green';
+        text.innerText = `載客舒適 (剩餘 ${availableCount} 空位)`;
+      } else if (availableCount >= 3) {
+        dot.className = 'status-dot yellow';
+        text.innerText = `普通 (剩餘 ${availableCount} 空位)`;
+      } else {
+        dot.className = 'status-dot red';
+        text.innerText = `擁擠 (剩餘 ${availableCount} 空位)`;
+      }
+    }
+
+    // 測試用：點擊按鈕載入資料
+    function simulateBackendData() {
+      updateSeatMap(mockApiData);
+    }
+
+    // 點擊單個座位可跳出提示（示意預約或查看詳情）
+    document.querySelectorAll('.seat').forEach(seat => {
+      seat.addEventListener('click', () => {
+        const seatId = seat.id.replace('seat-', '');
+        alert(`你點擊了座位: ${seatId}`);
+      });
+    });
+  </script>
+</body>
+</html>
