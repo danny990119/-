@@ -264,6 +264,21 @@
         alert(`你點擊了座位: ${seatId}`);
       });
     });
-  </script>
+  <script>
+  // 1. 自動產生一個虛擬的 Service Worker 讓瀏覽器允許安裝 App
+  const swCode = "self.addEventListener('fetch', (e) => { e.respondWith(fetch(e.request)); });";
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const swUrl = URL.createObjectURL(blob);
+
+  // 2. 註冊這個虛擬的 Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register(swUrl)
+        .then(reg => console.log('PWA 啟用成功'))
+        .catch(err => console.log('PWA 啟用失敗', err));
+    });
+  }
+</script>
+
 </body>
 </html>
