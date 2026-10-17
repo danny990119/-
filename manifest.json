@@ -1,7 +1,7 @@
 {
   "name": "公路公車線上座位",
   "short_name": "公路公車線上座位",
-  "start_url": "./index.html",
+  "start_url":"start_url": "/-/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
